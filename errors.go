@@ -35,4 +35,5 @@ var (
 	ErrAffiliationNameMissing        = errors.New("affiliation must have name")
 	ErrAffiliationNewNameMissing        = errors.New("affiliation must have new name")
 	ErrIdentityNameMissing        = errors.New("identity must have  name")
+	ErrIncorrectBlockHashParam		= errors.New("given block hash is not correct")
 )

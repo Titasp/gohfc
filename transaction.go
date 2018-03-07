@@ -16,6 +16,7 @@ import (
 	"time"
 	"github.com/hyperledger/fabric/protos/peer"
 	"bytes"
+	"errors"
 )
 
 // TransactionId represents transaction identifier. TransactionId is the unique transaction number.
@@ -40,17 +41,183 @@ type InvokeResponse struct {
 	TxID string
 }
 
+type BlockHeader struct {
+	Number       uint64 `json:"blockNumber"`
+	PreviousHash string `json:"previousHash"`
+	DataHash     string `json:"dataHash"`
+}
+
+type BlockData struct {
+	Data []*Envelope `json:"envelope"`
+}
+
+type BlockMetadata struct {
+	Metadata []*Metadata `json:"metadata"`
+}
+
+type Metadata struct {
+	Value      []byte               `json:"value"`
+	Signatures []*MetadataSignature `json:"signatures"`
+}
+
+type MetadataSignature struct {
+	SignatureHeader *SignatureHeader `json:"signatureHeader"`
+	Signature       []byte           `json:"signature"`
+}
+type Block struct {
+	Header   *BlockHeader   `json:"blockHeader"`
+	Data     *BlockData     `json:"blockData"`
+	Metadata *BlockMetadata `json:"blockMetadata"`
+}
+
 // QueryTransactionResponse holds data from `client.QueryTransaction`
 // TODO it is not fully implemented!
-type QueryTransactionResponse struct {
-	PeerName   string
-	Error      error
-	StatusCode int32
-}
+//type QueryTransactionResponse struct {
+//	PeerName   string
+//	Error      error
+//	StatusCode int32
+//}
 
 type transactionProposal struct {
 	proposal      []byte
 	transactionId string
+}
+
+// QueryTransactionResponse holds data from `client.QueryTransaction`
+// TODO it is not fully implemented!
+type QueryTransactionResponse struct {
+	PeerName             string                `json:"peerName"`
+	Error                error                 `json:"error"`
+	ProcessedTransaction *ProcessedTransaction `json:"processedTransaction"`
+}
+type ProcessedTransaction struct {
+	TransactionEnvelope *Envelope `json:"transactionEnvelope"`
+	ValidationCode      int       `json:"validationCode"`
+}
+type QueryBlockResponse struct {
+	PeerName   string `json:"peerName"`
+	Error      error  `json:"error,omitempty"`
+	StatusCode int32  `json:"statusCode"`
+	Block      *Block `json:"block"`
+}
+type Envelope struct {
+	Payload   *Payload `json:"payload"`
+	Signature string   `json:"signature"`
+}
+type Payload struct {
+	Header *Header            `json:"header"`
+	Data   *TransactionAction `json:"data"`
+}
+
+type Header struct {
+	ChannelHeader   *ChannelHeader   `json:"channelHeader"`
+	SignatureHeader *SignatureHeader `json:"signatureHeader"`
+}
+type SignatureHeader struct {
+	Creator *Creator `json:"creator"`
+	Nonce   string   `json:"nonce"`
+}
+type ChannelHeader struct {
+	Type      int32                     `json:"type"`
+	Version   int32                     `json:"version"`
+	Timestamp int64                     `json:"timestamp"`
+	ChannelId string                    `json:"channelId"`
+	TxId      string                    `json:"txId"`
+	Epoch     uint64                    `json:"epoch"`
+	Extension *ChaincodeHeaderExtension `json:"extension,omitempty"`
+}
+type Creator struct {
+	Mspid        string `json:"mspID"`
+	SerializedId string `json:"serializedId"`
+}
+type ChaincodeHeaderExtension struct {
+	PayloadVisibility []byte       `json:"payloadVisibility"`
+	ChaincodeID       *ChaincodeID `json:"chaincodeId"`
+}
+type ChaincodeID struct {
+	Path    string `json:"path"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+type TransactionAction struct {
+	// This holgs the identity of the client which submitted this transaction
+	Header  *SignatureHeader        `json:"header"`
+	Payload *ChaincodeActionPayload `json:"payload"`
+}
+type ChaincodeActionPayload struct {
+	ChaincodeProposalPayload *ChaincodeProposalPayload `json:"chaincodeProposalPayload"`
+	Action                   *ChaincodeEndorsedAction  `json:"action"`
+}
+
+type ChaincodeEndorsedAction struct {
+	ProposalResponsePayload *ProposalResponsePayload
+	Endorsements            []*Endorsement
+}
+type ChaincodeInput struct {
+	Args []string `json:"args"`
+}
+type ChaincodeSpec struct {
+	Type        int32           `json:"type"`
+	ChaincodeId *ChaincodeID    `json:"chaincodeId"`
+	Input       *ChaincodeInput `json:"chaincodeInput"`
+	Timeout     int32           `json:"timeout"`
+}
+type ChaincodeInvocationSpec struct {
+	ChaincodeSpec   *ChaincodeSpec `json:"chaincodeSpec"`
+	IdGenerationAlg string         `json:"idGenerationAlg"`
+}
+type ChaincodeProposalPayload struct {
+	Input        *ChaincodeInvocationSpec `json:"input"`
+	TransientMap map[string][]byte        `json"transientMap"`
+}
+type ProposalResponsePayload struct {
+	ProposalHash []byte
+	Extension    *ChaincodeAction
+}
+type ChaincodeAction struct {
+	Results  *TxReadWriteSet
+	Events   []byte
+	Response *Response
+}
+type TxReadWriteSet struct {
+	DataModel int32
+	NsRwset   []*NsReadWriteSet
+}
+
+type NsReadWriteSet struct {
+	Namespace string
+	Rwset     *KVRWSet
+}
+
+type KVRWSet struct {
+	Reads            []*KVRead
+	RangeQueriesInfo []*RangeQueryInfo
+	Writes           []*KVWrite
+}
+type KVRead struct {
+	Key     string
+	Version *Version
+}
+
+// TODO Implement if needed
+type RangeQueryInfo struct {
+}
+
+// TODO Implement if needed
+type KVWrite struct {
+}
+type Version struct {
+	BlockNum uint64
+	TxNum    uint64
+}
+
+// TODO Not implemented
+type Response struct {
+}
+
+type Endorsement struct {
+	Endorser  *Creator `json:"endorser"`
+	Signature string   `json:"signature"`
 }
 
 // marshalProtoIdentity creates SerializedIdentity from certificate and MSPid
@@ -354,13 +521,232 @@ func getChainCodeProposalPayload(bytes []byte) (*peer.ChaincodeProposalPayload, 
 	return cpp, err
 }
 
+func decodeBlock(payload []byte) (*QueryBlockResponse, error) {
+	block := new(common.Block)
+	if err := proto.Unmarshal(payload, block); err != nil {
+		return nil, err
+	}
+
+	numOfEnvelopes := len(block.Data.Data)
+	envelopes := make([]*Envelope, numOfEnvelopes)
+	for idx, obj := range block.Data.Data {
+		envelope := new(common.Envelope)
+		if err := proto.Unmarshal(obj, envelope); err != nil {
+			return nil, err
+		}
+		decPayload, err := decodeTransactionEnvelopePayload(envelope.Payload)
+		if err != nil {
+			return nil, err
+		}
+		envelopes[idx] = &Envelope{
+			Payload:   decPayload,
+			Signature: hex.EncodeToString(envelope.Signature[:]),
+		}
+	}
+
+	if len(block.Metadata.Metadata) == 0 {
+		return nil, errors.New("Metadata array is empty")
+	}
+	metadata := new(common.Metadata)
+	if err := proto.Unmarshal(block.Metadata.Metadata[0], metadata); err != nil {
+		return nil, err
+	}
+	signatures := make([]*MetadataSignature, len(metadata.Signatures))
+	for idx, signatureObj := range metadata.Signatures {
+		pbSignatureHeader := new(common.SignatureHeader)
+		if err := proto.Unmarshal(signatureObj.SignatureHeader, pbSignatureHeader); err != nil {
+			return nil, err
+		}
+		identity := new(msp.SerializedIdentity)
+		if err := proto.Unmarshal(pbSignatureHeader.Creator, identity); err != nil {
+			return nil, err
+		}
+		signatures[idx] = &MetadataSignature{
+			SignatureHeader: &SignatureHeader{
+				Creator: &Creator{
+					Mspid:        identity.Mspid,
+					SerializedId: string(identity.IdBytes[:]),
+				},
+				Nonce: hex.EncodeToString(pbSignatureHeader.Nonce[:]),
+			},
+			Signature: signatureObj.Signature[:],
+		}
+	}
+
+	responseObj := QueryBlockResponse{
+		Block: &Block{
+			Header: &BlockHeader{
+				Number:       block.Header.Number,
+				PreviousHash: hex.EncodeToString(block.Header.PreviousHash[:]),
+				DataHash:     hex.EncodeToString(block.Header.DataHash[:]),
+			},
+			Data: &BlockData{
+				Data: envelopes,
+			},
+			Metadata: &BlockMetadata{
+				Metadata: []*Metadata{
+					&Metadata{
+						Value:      metadata.Value[:],
+						Signatures: signatures,
+					}},
+			},
+		},
+	}
+	return &responseObj, nil
+}
+func decodeTransactionEnvelopePayload(payload []byte) (*Payload, error) {
+	transacionEnvelopePayload := new(common.Payload)
+	if err := proto.Unmarshal(payload, transacionEnvelopePayload); err != nil {
+		return nil, err
+	}
+
+	channelHeader := new(common.ChannelHeader)
+	if err := proto.Unmarshal(transacionEnvelopePayload.Header.ChannelHeader, channelHeader); err != nil {
+		return nil, err
+	}
+	signatureHeader := new(common.SignatureHeader)
+	if err := proto.Unmarshal(transacionEnvelopePayload.Header.SignatureHeader, signatureHeader); err != nil {
+		return nil, err
+	}
+	transactionSigneeIdentity := new(msp.SerializedIdentity)
+	if err := proto.Unmarshal(signatureHeader.Creator, transactionSigneeIdentity); err != nil {
+		return nil, err
+	}
+	chaincodeHeaderExtension := new(peer.ChaincodeHeaderExtension)
+	if err := proto.Unmarshal(channelHeader.Extension, chaincodeHeaderExtension); err != nil {
+		return nil, err
+	}
+
+	transactionAction := new(peer.Transaction)
+	if err := proto.Unmarshal(transacionEnvelopePayload.Data, transactionAction); err != nil {
+		return nil, err
+	}
+
+	peerSignatureheader := new(common.SignatureHeader)
+	if err := proto.Unmarshal(transactionAction.Actions[0].Header, peerSignatureheader); err != nil {
+		return nil, err
+	}
+
+	cPayload, err := GetChaincodeActionPayload(transactionAction.Actions[0].Payload)
+	if err != nil {
+		return nil, err
+	}
+
+	cProposalPayload := new(peer.ChaincodeProposalPayload)
+	if err := proto.Unmarshal(cPayload.ChaincodeProposalPayload, cProposalPayload); err != nil {
+		return nil, err
+	}
+
+	cInvocationSpec := new(peer.ChaincodeInvocationSpec)
+	if err := proto.Unmarshal(cProposalPayload.Input, cInvocationSpec); err != nil {
+		return nil, err
+	}
+
+	cInvocationArgs := make([]string, len(cInvocationSpec.ChaincodeSpec.Input.Args))
+	for idx, arg := range cInvocationSpec.ChaincodeSpec.Input.Args {
+		cInvocationArgs[idx] = string(arg)
+	}
+
+	endorsers := make([]*Endorsement, len(cPayload.Action.Endorsements))
+	for idx, endorser := range cPayload.Action.Endorsements {
+		endorserIdentity := new(msp.SerializedIdentity)
+		if err := proto.Unmarshal(endorser.Endorser, endorserIdentity); err != nil {
+			return nil, err
+		}
+		endorsers[idx] = &Endorsement{
+			Endorser: &Creator{
+				Mspid:        endorserIdentity.Mspid,
+				SerializedId: string(endorserIdentity.IdBytes),
+			},
+			Signature: hex.EncodeToString(endorser.Signature),
+		}
+	}
+
+	comittingPeerIdentity := new(msp.SerializedIdentity)
+	if err := proto.Unmarshal(peerSignatureheader.Creator[:], comittingPeerIdentity); err != nil {
+		return nil, err
+	}
+	return &Payload{
+		Header: &Header{
+			ChannelHeader: &ChannelHeader{
+				Type:      channelHeader.Type,
+				Version:   channelHeader.Version,
+				Timestamp: channelHeader.Timestamp.Seconds,
+				ChannelId: channelHeader.ChannelId,
+				TxId:      channelHeader.TxId,
+				Epoch:     channelHeader.Epoch,
+				Extension: &ChaincodeHeaderExtension{
+					PayloadVisibility: chaincodeHeaderExtension.PayloadVisibility[:],
+					ChaincodeID: &ChaincodeID{
+						Path:    chaincodeHeaderExtension.ChaincodeId.Path,
+						Name:    chaincodeHeaderExtension.ChaincodeId.Name,
+						Version: chaincodeHeaderExtension.ChaincodeId.Version,
+					},
+				},
+			},
+			SignatureHeader: &SignatureHeader{
+				Creator: &Creator{
+					Mspid:        transactionSigneeIdentity.Mspid,
+					SerializedId: string(transactionSigneeIdentity.IdBytes[:]),
+				},
+				Nonce: hex.EncodeToString(signatureHeader.Nonce[:]),
+			},
+		},
+		Data: &TransactionAction{
+			Header: &SignatureHeader{
+				Creator: &Creator{
+					Mspid:        comittingPeerIdentity.Mspid,
+					SerializedId: string(comittingPeerIdentity.IdBytes),
+				},
+				Nonce: hex.EncodeToString(peerSignatureheader.Nonce[:]),
+			},
+			Payload: &ChaincodeActionPayload{
+				ChaincodeProposalPayload: &ChaincodeProposalPayload{
+					Input: &ChaincodeInvocationSpec{
+						ChaincodeSpec: &ChaincodeSpec{
+							Type: int32(cInvocationSpec.ChaincodeSpec.Type),
+							ChaincodeId: &ChaincodeID{
+								Path:    cInvocationSpec.ChaincodeSpec.ChaincodeId.Path,
+								Name:    cInvocationSpec.ChaincodeSpec.ChaincodeId.Name,
+								Version: cInvocationSpec.ChaincodeSpec.ChaincodeId.Version,
+							},
+							Input: &ChaincodeInput{
+								Args: cInvocationArgs,
+							},
+							Timeout: cInvocationSpec.ChaincodeSpec.Timeout,
+						},
+						IdGenerationAlg: cInvocationSpec.IdGenerationAlg,
+					},
+					TransientMap: cProposalPayload.TransientMap,
+				},
+				Action: &ChaincodeEndorsedAction{
+					Endorsements: endorsers,
+				},
+			},
+		},
+	}, nil
+}
+
 // TODO not fully implemented!
-func decodeTransaction(payload []byte) (int32, error) {
+func decodeTransaction(payload []byte) (*QueryTransactionResponse, error) {
 	transaction := new(peer.ProcessedTransaction)
 	if err := proto.Unmarshal(payload, transaction); err != nil {
-		return 0, err
+		return nil, err
 	}
-	//DecodeBlockEnvelope(transaction.TransactionEnvelope)
-	return transaction.ValidationCode, nil
+	decPayload, err := decodeTransactionEnvelopePayload(transaction.TransactionEnvelope.Payload)
+	if err != nil {
+		return nil, err
+	}
+	responseObj := QueryTransactionResponse{
+		ProcessedTransaction: &ProcessedTransaction{
+			TransactionEnvelope: &Envelope{
+				Payload:   decPayload,
+				Signature: hex.EncodeToString(transaction.TransactionEnvelope.Signature[:]),
+			},
+			ValidationCode: int(transaction.ValidationCode),
+		},
+	}
+
+	return &responseObj, nil
 
 }

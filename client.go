@@ -12,6 +12,7 @@ import (
 	"github.com/hyperledger/fabric/protos/orderer"
 	"context"
 	"fmt"
+	"encoding/hex"
 )
 
 // FabricClient expose API's to work with Hyperledger Fabric
@@ -471,8 +472,133 @@ func (c *FabricClient) QueryTransaction(identity Identity, channelId string, txI
 			dec, err := decodeTransaction(p.Response.Response.GetPayload())
 			if err != nil {
 				qtr.Error = err
+			} else {
+				qtr.ProcessedTransaction = dec.ProcessedTransaction
 			}
-			qtr.StatusCode = dec
+		}
+		response[idx] = &qtr
+	}
+	return response, nil
+}
+
+func (c *FabricClient) QueryBlockByTxId(identity Identity, channelId, txId string, peers []string) ([]*QueryBlockResponse, error) {
+	execPeers := c.getPeers(peers)
+	if len(peers) != len(execPeers) {
+		return nil, ErrPeerNameNotFound
+	}
+	chainCode := ChainCode{
+		ChannelId: channelId,
+		Name: QSCC,
+		Type: ChaincodeSpec_GOLANG,
+		Args: []string{"GetBlockByTxID",channelId, txId}}
+
+	prop, err := createTransactionProposal(identity, chainCode)
+	if err != nil {
+		return nil, err
+	}
+	proposal, err := signedProposal(prop.proposal, identity, c.Crypto)
+	if err != nil {
+		return nil, err
+	}
+	r := sendToPeers(execPeers, proposal)
+	response := make([]*QueryBlockResponse, len(r))
+	for idx, p := range r {
+		qtr := QueryBlockResponse{PeerName: p.Name, Error: p.Err}
+		if p.Err != nil {
+			qtr.Error = p.Err
+		} else {
+			dec, err := decodeBlock(p.Response.Response.GetPayload())
+			if err != nil {
+				qtr.Error = err
+			} else {
+				qtr.Block = dec.Block
+				qtr.StatusCode = dec.StatusCode
+			}
+
+		}
+		response[idx] = &qtr
+	}
+	return response, nil
+}
+
+func (c *FabricClient) QueryBlockByNumber(identity Identity, channelId, blockNumber string, peers []string) ([]*QueryBlockResponse, error) {
+	execPeers := c.getPeers(peers)
+	if len(peers) != len(execPeers) {
+		return nil, ErrPeerNameNotFound
+	}
+	chainCode := ChainCode{
+		ChannelId: channelId,
+		Name: QSCC,
+		Type: ChaincodeSpec_GOLANG,
+		Args: []string{"GetBlockByNumber", channelId, blockNumber}}
+
+	prop, err := createTransactionProposal(identity, chainCode)
+	if err != nil {
+		return nil, err
+	}
+	proposal, err := signedProposal(prop.proposal, identity, c.Crypto)
+	if err != nil {
+		return nil, err
+	}
+	r := sendToPeers(execPeers, proposal)
+	response := make([]*QueryBlockResponse, len(r))
+	for idx, p := range r {
+		qtr := QueryBlockResponse{PeerName: p.Name, Error: p.Err}
+		if p.Err != nil {
+			qtr.Error = p.Err
+		} else {
+			dec, err := decodeBlock(p.Response.Response.GetPayload())
+			if err != nil {
+				qtr.Error = err
+			} else {
+				qtr.Block = dec.Block
+				qtr.StatusCode = dec.StatusCode
+			}
+
+		}
+		response[idx] = &qtr
+	}
+	return response, nil
+}
+
+func (c *FabricClient) QueryBlockByHash(identity Identity, channelId , blockHash string, peers []string) ([]*QueryBlockResponse, error) {
+	execPeers := c.getPeers(peers)
+	if len(peers) != len(execPeers) {
+		return nil, ErrPeerNameNotFound
+	}
+	decodedBlockHashBytes, err := hex.DecodeString(blockHash)
+	if err != nil {
+		return nil, ErrIncorrectBlockHashParam
+	}
+	chainCode := ChainCode{
+		ChannelId:channelId,
+		Name: QSCC,
+		Type: ChaincodeSpec_GOLANG,
+		Args: []string{"GetBlockByHash", channelId, string(decodedBlockHashBytes)}}
+
+	prop, err := createTransactionProposal(identity, chainCode)
+	if err != nil {
+		return nil, err
+	}
+	proposal, err := signedProposal(prop.proposal, identity, c.Crypto)
+	if err != nil {
+		return nil, err
+	}
+	r := sendToPeers(execPeers, proposal)
+	response := make([]*QueryBlockResponse, len(r))
+	for idx, p := range r {
+		qtr := QueryBlockResponse{PeerName: p.Name, Error: p.Err}
+		if p.Err != nil {
+			qtr.Error = p.Err
+		} else {
+			dec, err := decodeBlock(p.Response.Response.GetPayload())
+			if err != nil {
+				qtr.Error = err
+			} else {
+				qtr.Block = dec.Block
+				qtr.StatusCode = dec.StatusCode
+			}
+
 		}
 		response[idx] = &qtr
 	}
@@ -525,7 +651,6 @@ func (c *FabricClient) ListenForFilteredBlock(ctx context.Context, identity Iden
 	listener.Listen(response)
 	return nil
 }
-
 
 // NewFabricClientFromConfig create a new FabricClient from ClientConfig
 func NewFabricClientFromConfig(config ClientConfig) (*FabricClient, error) {
