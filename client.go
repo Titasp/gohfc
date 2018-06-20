@@ -437,7 +437,24 @@ func (c *FabricClient) Invoke(identity Identity, chainCode ChainCode, peers []st
 	if err != nil {
 		return nil, err
 	}
+
 	return &InvokeResponse{Status: reply.Status, TxID: prop.transactionId}, nil
+}
+
+func (c *FabricClient) EndorseSignedProposal(peers []string, proposal *peer.SignedProposal) ([]*PeerResponse, error) {
+	execPeers := c.getPeers(peers)
+	if len(peers) != len(execPeers) {
+		return nil, ErrPeerNameNotFound
+	}
+	return sendToPeers(execPeers, proposal), nil
+}
+
+func (c *FabricClient) BroadcastTransactionToOrderer(orderer string, envelope *common.Envelope) (*orderer.BroadcastResponse, error) {
+	ord, ok := c.Orderers[orderer]
+	if !ok {
+		return nil, ErrInvalidOrdererName
+	}
+	return ord.Broadcast(envelope)
 }
 
 // QueryTransaction get data for particular transaction.
@@ -488,9 +505,9 @@ func (c *FabricClient) QueryBlockByTxId(identity Identity, channelId, txId strin
 	}
 	chainCode := ChainCode{
 		ChannelId: channelId,
-		Name: QSCC,
-		Type: ChaincodeSpec_GOLANG,
-		Args: []string{"GetBlockByTxID",channelId, txId}}
+		Name:      QSCC,
+		Type:      ChaincodeSpec_GOLANG,
+		Args:      []string{"GetBlockByTxID", channelId, txId}}
 
 	prop, err := createTransactionProposal(identity, chainCode)
 	if err != nil {
@@ -528,9 +545,9 @@ func (c *FabricClient) QueryBlockByNumber(identity Identity, channelId, blockNum
 	}
 	chainCode := ChainCode{
 		ChannelId: channelId,
-		Name: QSCC,
-		Type: ChaincodeSpec_GOLANG,
-		Args: []string{"GetBlockByNumber", channelId, blockNumber}}
+		Name:      QSCC,
+		Type:      ChaincodeSpec_GOLANG,
+		Args:      []string{"GetBlockByNumber", channelId, blockNumber}}
 
 	prop, err := createTransactionProposal(identity, chainCode)
 	if err != nil {
@@ -561,7 +578,7 @@ func (c *FabricClient) QueryBlockByNumber(identity Identity, channelId, blockNum
 	return response, nil
 }
 
-func (c *FabricClient) QueryBlockByHash(identity Identity, channelId , blockHash string, peers []string) ([]*QueryBlockResponse, error) {
+func (c *FabricClient) QueryBlockByHash(identity Identity, channelId, blockHash string, peers []string) ([]*QueryBlockResponse, error) {
 	execPeers := c.getPeers(peers)
 	if len(peers) != len(execPeers) {
 		return nil, ErrPeerNameNotFound
@@ -571,10 +588,10 @@ func (c *FabricClient) QueryBlockByHash(identity Identity, channelId , blockHash
 		return nil, ErrIncorrectBlockHashParam
 	}
 	chainCode := ChainCode{
-		ChannelId:channelId,
-		Name: QSCC,
-		Type: ChaincodeSpec_GOLANG,
-		Args: []string{"GetBlockByHash", channelId, string(decodedBlockHashBytes)}}
+		ChannelId: channelId,
+		Name:      QSCC,
+		Type:      ChaincodeSpec_GOLANG,
+		Args:      []string{"GetBlockByHash", channelId, string(decodedBlockHashBytes)}}
 
 	prop, err := createTransactionProposal(identity, chainCode)
 	if err != nil {
