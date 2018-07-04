@@ -23,6 +23,16 @@ type FabricClient struct {
 	EventPeers map[string]*Peer
 }
 
+// Exposes private method which creates transaction proposal from given identity and chaincode objects
+func (c *FabricClient) CreateTransactionProposal(identity Identity, cc ChainCode) (*transactionProposal, error) {
+	return createTransactionProposal(identity, cc)
+}
+
+// Exposes private method which creates chaincode invocation spec. from given chaincode object
+func (c *FabricClient) ChainCodeInvocationSpec(chainCode ChainCode) ([]byte, error) {
+	return chainCodeInvocationSpec(chainCode)
+}
+
 // CreateUpdateChannel read channel config generated (usually) from configtxgen and send it to orderer
 // This step is needed before any peer is able to join the channel and before any future updates of the channel.
 func (c *FabricClient) CreateUpdateChannel(identity Identity, path string, channelId string, orderer string) (error) {
@@ -620,6 +630,29 @@ func (c *FabricClient) QueryBlockByHash(identity Identity, channelId, blockHash 
 		response[idx] = &qtr
 	}
 	return response, nil
+}
+
+// ListenForFullBlockWithPreCreatedSeekEnvelope listen for events in blockchain. Difference with `ListenForFullBlock` is that
+// EventListener is created with already constructed and signed Seek Envelope
+func (c *FabricClient) ListenForFullBlockWithPreCreatedSeekEnvelope(ctx context.Context, seekEnvelope *common.Envelope, eventPeer string, response chan<- EventBlockResponse) (error) {
+	ep, ok := c.EventPeers[eventPeer]
+	if !ok {
+		return ErrPeerNameNotFound
+	}
+	channelId, err := GetChannelIdFromSeekEnvelope(seekEnvelope)
+	if err != nil {
+		return err
+	}
+	listener, err := NewEventListener(ctx, c.Crypto, Identity{}, *ep, channelId, EventTypeFullBlock)
+	if err != nil {
+		return err
+	}
+	err = listener.SeekPredefined(seekEnvelope)
+	if err != nil {
+		return err
+	}
+	listener.Listen(response)
+	return nil
 }
 
 // ListenForFullBlock will listen for events when new block is committed to blockchain and will return block height,

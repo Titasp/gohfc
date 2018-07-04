@@ -8,6 +8,22 @@ import (
 	"github.com/pkg/errors"
 )
 
+// GetChannelIdFromSeekEnvelope returns channelId from seek envelope channel header
+func GetChannelIdFromSeekEnvelope(seekEnvelope *cb.Envelope) (string, error) {
+	payload := &cb.Payload{}
+	err := proto.Unmarshal(seekEnvelope.Payload, payload)
+	if err != nil {
+		return "", fmt.Errorf("Error unmarshaling envelope payload, err %s", err)
+	}
+	channelHeader := &cb.ChannelHeader{}
+	err = proto.Unmarshal(payload.Header.ChannelHeader, channelHeader)
+	if err != nil {
+		return "", fmt.Errorf("Error unmarshalling channel header, err %s", err)
+	}
+
+	return channelHeader.ChannelId, nil
+}
+
 // UnmarshalChaincodeID returns a ChaincodeID from bytes
 func UnmarshalChaincodeID(bytes []byte) (*pb.ChaincodeID, error) {
 	ccid := &pb.ChaincodeID{}
