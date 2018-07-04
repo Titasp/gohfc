@@ -632,9 +632,9 @@ func (c *FabricClient) QueryBlockByHash(identity Identity, channelId, blockHash 
 	return response, nil
 }
 
-// ListenForFullBlockWithPreCreatedSeekEnvelope listen for events in blockchain. Difference with `ListenForFullBlock` is that
+// ListenForFullBlockWithPreDefinedSeekEnvelope listen for events in blockchain. Difference with `ListenForFullBlock` is that
 // EventListener is created with already constructed and signed Seek Envelope
-func (c *FabricClient) ListenForFullBlockWithPreCreatedSeekEnvelope(ctx context.Context, seekEnvelope *common.Envelope, eventPeer string, response chan<- EventBlockResponse) (error) {
+func (c *FabricClient) ListenForFullBlockWithPreDefinedSeekEnvelope(ctx context.Context, seekEnvelope *common.Envelope, eventPeer string, response chan<- EventBlockResponse) (error) {
 	ep, ok := c.EventPeers[eventPeer]
 	if !ok {
 		return ErrPeerNameNotFound
@@ -675,6 +675,29 @@ func (c *FabricClient) ListenForFullBlock(ctx context.Context, identity Identity
 		return err
 	}
 	err = listener.SeekNewest()
+	if err != nil {
+		return err
+	}
+	listener.Listen(response)
+	return nil
+}
+
+// ListenForFilteredBlockWithPreDefinedSeekEnvelope listen for events in blockchain. Difference with `ListenForFilteredBlock` is that
+// EventListener is created with already constructed and signed Seek Envelope
+func (c *FabricClient) ListenForFilteredBlockWithPreDefinedSeekEnvelope(ctx context.Context, seekEnvelope *common.Envelope, eventPeer string, response chan<- EventBlockResponse) (error) {
+	ep, ok := c.EventPeers[eventPeer]
+	if !ok {
+		return ErrPeerNameNotFound
+	}
+	channelId, err := GetChannelIdFromSeekEnvelope(seekEnvelope)
+	if err != nil {
+		return err
+	}
+	listener, err := NewEventListener(ctx, c.Crypto, Identity{}, *ep, channelId, EventTypeFiltered)
+	if err != nil {
+		return err
+	}
+	err = listener.SeekPredefined(seekEnvelope)
 	if err != nil {
 		return err
 	}
