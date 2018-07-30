@@ -23,15 +23,6 @@ type FabricClient struct {
 	EventPeers map[string]*Peer
 }
 
-// Exposes private method which creates transaction proposal from given identity and chaincode objects
-func (c *FabricClient) CreateTransactionProposal(identity Identity, cc ChainCode) (*transactionProposal, error) {
-	return createTransactionProposal(identity, cc)
-}
-
-// Exposes private method which creates chaincode invocation spec. from given chaincode object
-func (c *FabricClient) ChainCodeInvocationSpec(chainCode ChainCode) ([]byte, error) {
-	return chainCodeInvocationSpec(chainCode)
-}
 
 // CreateUpdateChannel read channel config generated (usually) from configtxgen and send it to orderer
 // This step is needed before any peer is able to join the channel and before any future updates of the channel.
@@ -195,7 +186,7 @@ func (c *FabricClient) InstantiateChainCode(identity Identity, req *ChainCode, p
 		return nil, err
 	}
 
-	transaction, err := createTransaction(prop.proposal, sendToPeers(execPeers, proposal))
+	transaction, err := CreateTransaction(prop.proposal, sendToPeers(execPeers, proposal))
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +218,7 @@ func (c *FabricClient) QueryInstalledChainCodes(identity Identity, peers []strin
 		Args: []string{"getinstalledchaincodes"},
 	}
 
-	prop, err := createTransactionProposal(identity, chainCode)
+	prop, err := CreateTransactionProposal(identity, chainCode)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +253,7 @@ func (c *FabricClient) QueryInstantiatedChainCodes(identity Identity, channelId 
 		return nil, ErrPeerNameNotFound
 	}
 
-	prop, err := createTransactionProposal(identity, ChainCode{
+	prop, err := CreateTransactionProposal(identity, ChainCode{
 		ChannelId: channelId,
 		Name:      LSCC,
 		Type:      ChaincodeSpec_GOLANG,
@@ -306,7 +297,7 @@ func (c *FabricClient) QueryChannels(identity Identity, peers []string) ([]*Quer
 		Args: []string{"GetChannels"},
 	}
 
-	prop, err := createTransactionProposal(identity, chainCode)
+	prop, err := CreateTransactionProposal(identity, chainCode)
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +341,7 @@ func (c *FabricClient) QueryChannelInfo(identity Identity, channelId string, pee
 		Args:      []string{"GetChainInfo", channelId},
 	}
 
-	prop, err := createTransactionProposal(identity, chainCode)
+	prop, err := CreateTransactionProposal(identity, chainCode)
 	if err != nil {
 		return nil, err
 	}
@@ -389,7 +380,7 @@ func (c *FabricClient) Query(identity Identity, chainCode ChainCode, peers []str
 	if len(peers) != len(execPeers) {
 		return nil, ErrPeerNameNotFound
 	}
-	prop, err := createTransactionProposal(identity, chainCode)
+	prop, err := CreateTransactionProposal(identity, chainCode)
 	if err != nil {
 		return nil, err
 	}
@@ -427,7 +418,7 @@ func (c *FabricClient) Invoke(identity Identity, chainCode ChainCode, peers []st
 	if len(peers) != len(execPeers) {
 		return nil, ErrPeerNameNotFound
 	}
-	prop, err := createTransactionProposal(identity, chainCode)
+	prop, err := CreateTransactionProposal(identity, chainCode)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +426,7 @@ func (c *FabricClient) Invoke(identity Identity, chainCode ChainCode, peers []st
 	if err != nil {
 		return nil, err
 	}
-	transaction, err := createTransaction(prop.proposal, sendToPeers(execPeers, proposal))
+	transaction, err := CreateTransaction(prop.proposal, sendToPeers(execPeers, proposal))
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +471,7 @@ func (c *FabricClient) QueryTransaction(identity Identity, channelId string, txI
 		Type:      ChaincodeSpec_GOLANG,
 		Args:      []string{"GetTransactionByID", channelId, txId}}
 
-	prop, err := createTransactionProposal(identity, chainCode)
+	prop, err := CreateTransactionProposal(identity, chainCode)
 	if err != nil {
 		return nil, err
 	}
@@ -519,7 +510,7 @@ func (c *FabricClient) QueryBlockByTxId(identity Identity, channelId, txId strin
 		Type:      ChaincodeSpec_GOLANG,
 		Args:      []string{"GetBlockByTxID", channelId, txId}}
 
-	prop, err := createTransactionProposal(identity, chainCode)
+	prop, err := CreateTransactionProposal(identity, chainCode)
 	if err != nil {
 		return nil, err
 	}
@@ -559,7 +550,7 @@ func (c *FabricClient) QueryBlockByNumber(identity Identity, channelId, blockNum
 		Type:      ChaincodeSpec_GOLANG,
 		Args:      []string{"GetBlockByNumber", channelId, blockNumber}}
 
-	prop, err := createTransactionProposal(identity, chainCode)
+	prop, err := CreateTransactionProposal(identity, chainCode)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +594,7 @@ func (c *FabricClient) QueryBlockByHash(identity Identity, channelId, blockHash 
 		Type:      ChaincodeSpec_GOLANG,
 		Args:      []string{"GetBlockByHash", channelId, string(decodedBlockHashBytes)}}
 
-	prop, err := createTransactionProposal(identity, chainCode)
+	prop, err := CreateTransactionProposal(identity, chainCode)
 	if err != nil {
 		return nil, err
 	}

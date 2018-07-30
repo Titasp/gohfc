@@ -89,7 +89,7 @@ type ChainCodesResponse struct {
 
 // createInstallProposal read chaincode from provided source and namespace, pack it and generate install proposal
 // transaction. Transaction is not send from this func
-func createInstallProposal(identity Identity, req *InstallRequest) (*transactionProposal, error) {
+func createInstallProposal(identity Identity, req *InstallRequest) (*TransactionProposal, error) {
 
 	var packageBytes []byte
 	var err error
@@ -159,13 +159,13 @@ func createInstallProposal(identity Identity, req *InstallRequest) (*transaction
 	if err != nil {
 		return nil, err
 	}
-	return &transactionProposal{proposal: proposal, transactionId: txId.TransactionId}, nil
+	return &TransactionProposal{proposal: proposal, transactionId: txId.TransactionId}, nil
 
 }
 
 // createInstantiateProposal creates instantiate proposal transaction for already installed chaincode.
 // transaction is not send from this func
-func createInstantiateProposal(identity Identity, req *ChainCode, operation string, collectionConfig []byte) (*transactionProposal, error) {
+func createInstantiateProposal(identity Identity, req *ChainCode, operation string, collectionConfig []byte) (*TransactionProposal, error) {
 	if operation != "deploy" && operation != "upgrade" {
 		return nil, fmt.Errorf("install proposall accept only 'deploy' and 'upgrade' operations")
 	}
@@ -239,7 +239,7 @@ func createInstantiateProposal(identity Identity, req *ChainCode, operation stri
 	if err != nil {
 		return nil, err
 	}
-	return &transactionProposal{proposal: proposal, transactionId: txId.TransactionId}, nil
+	return &TransactionProposal{proposal: proposal, transactionId: txId.TransactionId}, nil
 
 }
 

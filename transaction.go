@@ -78,7 +78,7 @@ type Block struct {
 //	StatusCode int32
 //}
 
-type transactionProposal struct {
+type TransactionProposal struct {
 	proposal      []byte
 	transactionId string
 }
@@ -168,7 +168,7 @@ type ChaincodeInvocationSpec struct {
 }
 type ChaincodeProposalPayload struct {
 	Input        *ChaincodeInvocationSpec `json:"input"`
-	TransientMap map[string][]byte        `json"transientMap"`
+	TransientMap map[string][]byte        `json:"transientMap"`
 }
 type ProposalResponsePayload struct {
 	ProposalHash []byte
@@ -370,7 +370,7 @@ func sendToPeers(peers []*Peer, prop *peer.SignedProposal) []*PeerResponse {
 	return resp
 }
 
-func createTransactionProposal(identity Identity, cc ChainCode) (*transactionProposal, error) {
+func CreateTransactionProposal(identity Identity, cc ChainCode) (*TransactionProposal, error) {
 	spec, err := chainCodeInvocationSpec(cc)
 	if err != nil {
 		return nil, err
@@ -408,7 +408,7 @@ func createTransactionProposal(identity Identity, cc ChainCode) (*transactionPro
 	if err != nil {
 		return nil, err
 	}
-	return &transactionProposal{proposal: proposal, transactionId: txId.TransactionId}, nil
+	return &TransactionProposal{proposal: proposal, transactionId: txId.TransactionId}, nil
 }
 
 func decodeChainCodeQueryResponse(data []byte) ([]*peer.ChaincodeInfo, error) {
@@ -420,7 +420,7 @@ func decodeChainCodeQueryResponse(data []byte) ([]*peer.ChaincodeInfo, error) {
 	return response.GetChaincodes(), nil
 }
 
-func createTransaction(proposal []byte, endorsement []*PeerResponse) ([]byte, error) {
+func CreateTransaction(proposal []byte, endorsement []*PeerResponse) ([]byte, error) {
 	var propResp *peer.ProposalResponse
 	var pl []byte
 	mEndorsements := make([]*peer.Endorsement, 0, len(endorsement))
